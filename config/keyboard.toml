@@ -1,0 +1,26 @@
+[keyboard]
+model = "pc105"
+# Right Alt as AltGr, Shift+Right Alt as Compose
+compose = "lv3:ralt_switch_multikey"
+
+# Each [[device]] binds a layout to a physical keyboard.
+# "match" is a substring matched against xinput device names.
+
+[[device]]
+match = "AT Translated Set 2 keyboard"
+layout = "fr"
+variant = "nodeadkeys"
+
+[[device]]
+match = "ThinkPad Compact USB Keyboard"
+layout = "us"
+variant = "altgr-intl"
+
+[emoji]
+selector = "rofi"
+action = "type"
+skin_tone = "neutral"
+typer = "xdotool"
+clipboarder = "xclip"
+max_recent = 10
+selector_args = "-l 20 -fn monospace-14"
