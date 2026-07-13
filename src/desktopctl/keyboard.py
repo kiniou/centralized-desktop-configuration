@@ -18,13 +18,34 @@ from pathlib import Path
 # ── data model ───────────────────────────────────────────────────────
 
 @dataclass
+class Keyboard:
+    """A physical keyboard slave reported by xinput."""
+    name: str
+    xinput_id: int
+    usb: str = ""          # normalized "vendor:product" hex, "" if unknown
+
+
+@dataclass
 class DeviceLayout:
-    match: str
     layout: str
     variant: str = ""
+    id: str = ""           # usb "vendor:product" hex, e.g. "17ef:6047" (preferred)
+    match: str = ""        # xinput name substring (fallback / non-USB devices)
+    description: str = ""  # human-readable note about the device
 
     def label(self) -> str:
         return f"{self.layout}({self.variant})" if self.variant else self.layout
+
+    def key(self) -> str:
+        """Short identifier for messages."""
+        return self.description or self.id or self.match or "?"
+
+    def matches(self, kb: Keyboard) -> bool:
+        if self.id and kb.usb and _norm_usb(self.id) == kb.usb:
+            return True
+        if self.match and self.match in kb.name:
+            return True
+        return False
 
 
 @dataclass
@@ -54,9 +75,11 @@ def load(path: Path) -> KeyboardConfig:
     kb = data.get("keyboard", {})
     devices = [
         DeviceLayout(
-            match=entry["match"],
             layout=entry["layout"],
             variant=entry.get("variant", ""),
+            id=entry.get("id", ""),
+            match=entry.get("match", ""),
+            description=entry.get("description", ""),
         )
         for entry in data.get("device", [])
     ]
@@ -69,8 +92,39 @@ def load(path: Path) -> KeyboardConfig:
 
 # ── xinput helpers ───────────────────────────────────────────────────
 
-def list_keyboards() -> list[tuple[str, int]]:
-    """Return (name, xinput_id) for each physical keyboard slave."""
+def _norm_usb(s: str) -> str:
+    """Normalize a 'vendor:product' hex id to zero-padded lowercase.
+
+    Returns "" if the string is not a valid vendor:product pair.
+    """
+    try:
+        vendor, product = s.strip().split(":")
+        return f"{int(vendor, 16):04x}:{int(product, 16):04x}"
+    except (ValueError, AttributeError):
+        return ""
+
+
+def _device_usb(xinput_id: int) -> str:
+    """Return the 'vendor:product' hex USB id for an xinput device.
+
+    xinput exposes it as a decimal "Device Product ID (nnn): v, p"
+    property.  Returns "" when the device reports no id (0, 0).
+    """
+    result = subprocess.run(
+        ["xinput", "list-props", str(xinput_id)],
+        capture_output=True, text=True,
+    )
+    m = re.search(r"Device Product ID \(\d+\):\s*(\d+),\s*(\d+)", result.stdout)
+    if not m:
+        return ""
+    vendor, product = int(m.group(1)), int(m.group(2))
+    if vendor == 0 and product == 0:
+        return ""
+    return f"{vendor:04x}:{product:04x}"
+
+
+def list_keyboards() -> list[Keyboard]:
+    """Return a Keyboard for each physical keyboard slave."""
     result = subprocess.run(
         ["xinput", "list"], capture_output=True, text=True, check=True
     )
@@ -83,7 +137,7 @@ def list_keyboards() -> list[tuple[str, int]]:
             name = m.group(1).strip()
             dev_id = int(m.group(2))
             if "Virtual" not in name and "XTEST" not in name:
-                devices.append((name, dev_id))
+                devices.append(Keyboard(name, dev_id, _device_usb(dev_id)))
     return devices
 
 
@@ -164,18 +218,15 @@ def apply(config: KeyboardConfig) -> list[str]:
     results = []
 
     for dev_cfg in config.devices:
-        matched = [
-            (name, did) for name, did in keyboards
-            if dev_cfg.match in name
-        ]
+        matched = [k for k in keyboards if dev_cfg.matches(k)]
         if not matched:
-            results.append(f"  {dev_cfg.match}: no matching device found")
+            results.append(f"  {dev_cfg.key()}: no matching device found")
             continue
 
-        for name, did in matched:
+        for k in matched:
             cmd = [
                 "setxkbmap",
-                "-device", str(did),
+                "-device", str(k.xinput_id),
                 "-model", config.model,
                 "-layout", dev_cfg.layout,
                 "-variant", dev_cfg.variant,
@@ -184,7 +235,10 @@ def apply(config: KeyboardConfig) -> list[str]:
                 cmd.extend(["-option", config.compose])
             subprocess.run(cmd, check=True)
 
-            results.append(f"  {name} (id={did}): {dev_cfg.label()}")
+            desc = f"{dev_cfg.description} — " if dev_cfg.description else ""
+            results.append(
+                f"  {desc}{k.name} (id={k.xinput_id}): {dev_cfg.label()}"
+            )
 
     return results
 
@@ -195,17 +249,18 @@ def status(config: KeyboardConfig) -> list[str]:
     lines = []
 
     for dev_cfg in config.devices:
-        matched = [
-            (name, did) for name, did in keyboards
-            if dev_cfg.match in name
-        ]
+        matched = [k for k in keyboards if dev_cfg.matches(k)]
         if not matched:
-            lines.append(f"  {dev_cfg.match}: not connected")
+            lines.append(f"  {dev_cfg.key()}: not connected")
             continue
 
-        for name, did in matched:
-            state = query_device(did)
+        for k in matched:
+            state = query_device(k.xinput_id)
             opts = f"  [{', '.join(state.options)}]" if state.options else ""
-            lines.append(f"  {name} (id={did}): {state.group_name} [{state.label()}]{opts}")
+            desc = f"{dev_cfg.description} — " if dev_cfg.description else ""
+            lines.append(
+                f"  {desc}{k.name} (id={k.xinput_id}): "
+                f"{state.group_name} [{state.label()}]{opts}"
+            )
 
     return lines

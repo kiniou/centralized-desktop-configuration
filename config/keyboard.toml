@@ -4,14 +4,21 @@ model = "pc105"
 compose = "lv3:ralt_switch_multikey"
 
 # Each [[device]] binds a layout to a physical keyboard.
-# "match" is a substring matched against xinput device names.
+# Prefer "id" — the USB "vendor:product" hex id (stable across renames).
+# Run `desktopctl keyboard list` to read the id of a connected device.
+# "match" (xinput name substring) is an optional fallback for devices
+# with no USB id, or when both are given it widens the match.
 
 [[device]]
+description = "Internal ThinkPad keyboard (AT/PS2)"
+id = "0001:0001"
 match = "AT Translated Set 2 keyboard"
 layout = "fr"
 variant = "nodeadkeys"
 
 [[device]]
+description = "ThinkPad Compact USB Keyboard with TrackPoint"
+# id = "17ef:6047"   # fill from `desktopctl keyboard list` when connected
 match = "ThinkPad Compact USB Keyboard"
 layout = "us"
 variant = "altgr-intl"

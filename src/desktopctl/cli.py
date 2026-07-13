@@ -74,8 +74,9 @@ def keyboard_status(ctx):
 @keyboard_group.command("list")
 def keyboard_list():
     """List detected keyboard devices."""
-    for name, did in kb.list_keyboards():
-        click.echo(f"  id={did}  {name}")
+    for k in kb.list_keyboards():
+        usb = k.usb or "-"
+        click.echo(f"  id={k.xinput_id:<3} usb={usb:<9}  {k.name}")
 
 
 @cli.command()
