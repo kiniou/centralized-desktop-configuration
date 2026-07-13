@@ -80,6 +80,30 @@ def keyboard_list():
 
 
 @cli.command()
+@click.argument(
+    "shell", type=click.Choice(["zsh", "bash", "fish"]), default="zsh"
+)
+def completion(shell: str):
+    """Output a shell completion script (default: zsh).
+
+    \b
+    Load it for the current session:
+        eval "$(desktopctl completion zsh)"
+
+    Or install it persistently (zsh):
+        desktopctl completion zsh > ~/.zfunc/_desktopctl
+    (ensure ~/.zfunc is on $fpath and `autoload -U compinit && compinit` runs).
+    """
+    from click.shell_completion import get_completion_class
+
+    comp_cls = get_completion_class(shell)
+    if comp_cls is None:
+        raise click.ClickException(f"Unsupported shell: {shell}")
+    comp = comp_cls(cli, {}, "desktopctl", "_DESKTOPCTL_COMPLETE")
+    click.echo(comp.source())
+
+
+@cli.command()
 @click.pass_context
 def emoji(ctx):
     """Launch emoji picker (rofimoji)."""
