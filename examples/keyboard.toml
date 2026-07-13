@@ -10,24 +10,35 @@ compose = "lv3:ralt_switch_multikey"
 # with no USB id, or when both are given it widens the match.
 
 [[device]]
-description = "Internal ThinkPad keyboard (AT/PS2)"
+description = "Built-in laptop keyboard (AT/PS2)"
 id = "0001:0001"
 match = "AT Translated Set 2 keyboard"
 layout = "fr"
 variant = "nodeadkeys"
 
 [[device]]
-description = "ThinkPad Compact USB Keyboard with TrackPoint"
-# id = "17ef:6047"   # fill from `desktopctl keyboard list` when connected
-match = "ThinkPad Compact USB Keyboard"
+description = "External USB keyboard"
+# id = "1234:5678"   # fill from `desktopctl keyboard list` when connected
+match = "Example USB Keyboard"
 layout = "us"
 variant = "altgr-intl"
 
+# Emoji picker settings. Each key maps to a rofimoji flag (see `rofimoji --help`);
+# omit any key to keep rofimoji's own default. Defaults below target X11.
 [emoji]
+# Picker frontend (--selector): rofi | wofi | fuzzel | dmenu | tofi | bemenu | wmenu | choose
 selector = "rofi"
+# What to do with the pick (--action): type | copy | clipboard | unicode | copy-unicode | print | menu
 action = "type"
+# Default skin tone (--skin-tone): neutral | light | medium-light | moderate | dark brown | black | ask
 skin_tone = "neutral"
+# Tool used to type the emoji (--typer): xdotool | ydotool  (Wayland: wtype)
 typer = "xdotool"
+# Tool used to copy to the clipboard (--clipboarder): xsel | xclip  (Wayland: wl-copy)
 clipboarder = "xclip"
+# How many recently-used emoji to surface first (--max-recent); 0 disables
 max_recent = 5
+# Extra args passed straight to the selector (--selector-args)
 selector_args = "-l 20 -fn monospace-14"
+# Custom prompt label shown in the picker (--prompt)
+# prompt = "Emoji"
