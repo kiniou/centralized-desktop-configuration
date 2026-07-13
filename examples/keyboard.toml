@@ -29,5 +29,5 @@ action = "type"
 skin_tone = "neutral"
 typer = "xdotool"
 clipboarder = "xclip"
-max_recent = 10
+max_recent = 5
 selector_args = "-l 20 -fn monospace-14"

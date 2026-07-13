@@ -6,8 +6,23 @@ build-backend = "hatchling.build"
 name = "desktopctl"
 version = "0.1.0"
 description = "Centralized desktop configuration tool"
+readme = "README.md"
 requires-python = ">=3.11"
+license = "WTFPL"
+license-files = ["LICENSE"]
+authors = [{ name = "Kevin Roy", email = "kiniou@gmail.com" }]
+keywords = ["desktop", "keyboard", "xkb", "linux", "configuration"]
+classifiers = [
+    "Environment :: X11 Applications",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Desktop Environment",
+]
 dependencies = ["click>=8.0"]
+
+[project.urls]
+Homepage = "https://github.com/kiniou/centralized-desktop-configuration"
+Repository = "https://github.com/kiniou/centralized-desktop-configuration"
 
 [project.scripts]
 desktopctl = "desktopctl.cli:cli"
