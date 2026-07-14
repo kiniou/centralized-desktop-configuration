@@ -1,0 +1,34 @@
+# Theme switching: `desktopctl light` / `desktopctl dark` run each app's
+# `command`, replacing {theme} with the app's `light`/`dark` value below.
+# Commands run via the shell (so ~, &&, pipes work). The chosen mode is stored
+# at ${XDG_STATE_HOME:-~/.local/state}/desktopctl/daylight.
+#
+# Each [[app]]:
+#   name     friendly label shown in output
+#   command  shell command; "{theme}" is replaced with the light/dark value
+#   light    theme value substituted for {theme} on `desktopctl light`
+#   dark     theme value substituted for {theme} on `desktopctl dark`
+# An app whose command has no {theme} placeholder just runs on every switch.
+
+[[app]]
+name = "desktop"
+command = "gsettings set org.gnome.desktop.interface color-scheme {theme}"
+light = "prefer-light"
+dark  = "prefer-dark"
+
+[[app]]
+name = "alacritty"
+command = "ln -nsf ~/.config/alacritty/{theme} ~/.config/alacritty/current-theme.toml && touch ~/.config/alacritty/alacritty.toml"
+light = "solarized_light.toml"
+dark  = "solarized_dark.toml"
+
+# [[app]]
+# name = "kitty"
+# command = "kitty @ set-colors --all ~/.config/kitty/themes/{theme}.conf"
+# light = "gruvbox_light_hard"
+# dark  = "gruvbox_dark"
+
+# An app with no {theme} placeholder just runs its command on every switch:
+# [[app]]
+# name = "emacs"
+# command = "emacsclient --eval '(daylight-switcher t)'"

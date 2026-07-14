@@ -25,6 +25,8 @@ settings** (touchpad / trackpoint / mouse tweaks) and a thin wrapper around an
 - **Accurate status** — reads back the *actual* per-device XKB state with
   `xkbcomp -i` (which `setxkbmap -query` gets wrong for per-device layouts), and
   the live libinput property values for pointers.
+- **Light/dark switching** — `desktopctl light` / `desktopctl dark` flip your
+  apps between themes by running per-app shell commands from `daylight.toml`.
 - **Apply everything** — `desktopctl apply` runs every configuration present.
 - **Emoji picker** — launches [`rofimoji`](https://github.com/fdw/rofimoji) with
   options read from your config.
@@ -95,7 +97,7 @@ Configuration lives in `~/.config/desktopctl/`. Copy the sample from
 
 ```bash
 mkdir -p ~/.config/desktopctl
-cp examples/keyboard.toml examples/pointer.toml ~/.config/desktopctl/
+cp examples/keyboard.toml examples/pointer.toml examples/daylight.toml ~/.config/desktopctl/
 ```
 
 A minimal `keyboard.toml`:
@@ -150,6 +152,28 @@ accel_profile = "adaptive"
 See [`examples/pointer.toml`](examples/pointer.toml) for every supported
 setting.
 
+A minimal `daylight.toml` (one `[[app]]` per app; `{theme}` in `command` is
+replaced with the `light`/`dark` value):
+
+```toml
+[[app]]
+name = "desktop"
+command = "gsettings set org.gnome.desktop.interface color-scheme {theme}"
+light = "prefer-light"
+dark  = "prefer-dark"
+
+[[app]]
+name = "alacritty"
+command = "ln -nsf ~/.config/alacritty/{theme} ~/.config/alacritty/current-theme.toml && touch ~/.config/alacritty/alacritty.toml"
+light = "solarized_light.toml"
+dark  = "solarized_dark.toml"
+```
+
+Commands run through the shell, so `~`, `&&` and pipes work. The chosen mode is
+recorded at `${XDG_STATE_HOME:-~/.local/state}/desktopctl/daylight`. Apps
+already running inside a terminal (e.g. Neovim) can *watch* that file to follow
+the switch — see [`examples/neovim-daylight.md`](examples/neovim-daylight.md).
+
 > Prefer a different location? Point at it with `desktopctl -C <dir> …` or the
 > `DESKTOPCTL_CONFIG` environment variable. You can also symlink your repo copy
 > into `~/.config/desktopctl/` to keep everything version-controlled.
@@ -166,6 +190,8 @@ desktopctl keyboard status    # Show the current layout of each device
 desktopctl pointer list       # List detected pointers (with USB ids)
 desktopctl pointer apply      # Apply per-device pointer settings from pointer.toml
 desktopctl pointer status     # Show the current settings of each pointer
+desktopctl light              # Switch configured apps to their light theme
+desktopctl dark               # Switch configured apps to their dark theme
 desktopctl emoji              # Launch the emoji picker
 desktopctl --help             # Full command reference
 ```
@@ -194,7 +220,7 @@ Replace `zsh` with `bash` or `fish` as needed.
 ## Project layout
 
 ```
-src/desktopctl/   # CLI (cli.py), keyboard.py, pointer.py, shared xinput.py
+src/desktopctl/   # CLI (cli.py), keyboard.py, pointer.py, daylight.py, shared xinput.py
 examples/         # sample configuration to copy into ~/.config/desktopctl/
 ```
 

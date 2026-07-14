@@ -10,6 +10,7 @@ from pathlib import Path
 
 import click
 
+from . import daylight
 from . import keyboard as kb
 from . import pointer as ptr
 
@@ -46,6 +47,13 @@ def _pointer_config(ctx: click.Context) -> ptr.PointerConfig:
     if not config_path.exists():
         raise click.ClickException(f"Config not found: {config_path}")
     return ptr.load(config_path)
+
+
+def _daylight_config(ctx: click.Context) -> daylight.DaylightConfig:
+    config_path = ctx.obj["config_dir"] / "daylight.toml"
+    if not config_path.exists():
+        raise click.ClickException(f"Config not found: {config_path}")
+    return daylight.load(config_path)
 
 
 @cli.group("keyboard")
@@ -126,11 +134,23 @@ def pointer_list():
 @cli.command("apply")
 @click.pass_context
 def apply_all(ctx):
-    """Apply every available configuration (keyboard, pointer)."""
+    """Apply every available configuration (keyboard, pointer, daylight).
+
+    Daylight reapplies the last mode set by `desktopctl light`/`dark`; it is
+    skipped when no mode has been chosen yet (apply never picks a theme).
+    """
     config_dir = ctx.obj["config_dir"]
+
+    def run_daylight(path):
+        mode = daylight.current_mode()
+        if mode is None:
+            return ["  no saved mode yet — run `desktopctl light` or `desktopctl dark`"]
+        return daylight.apply(daylight.load(path), mode)
+
     sections = [
         ("Keyboard", "keyboard.toml", lambda p: kb.apply(kb.load(p))),
         ("Pointer", "pointer.toml", lambda p: ptr.apply(ptr.load(p))),
+        ("Daylight", "daylight.toml", run_daylight),
     ]
 
     ran = False
@@ -212,3 +232,24 @@ def emoji(ctx):
             cmd.extend(["--selector-args", selector_args])
 
     subprocess.run(cmd)
+
+
+def _switch(ctx: click.Context, mode: str) -> None:
+    config = _daylight_config(ctx)
+    click.echo(f"Switching to {mode}:")
+    for line in daylight.apply(config, mode):
+        click.echo(line)
+
+
+@cli.command("light")
+@click.pass_context
+def light(ctx):
+    """Switch all configured apps to their light theme."""
+    _switch(ctx, "light")
+
+
+@cli.command("dark")
+@click.pass_context
+def dark(ctx):
+    """Switch all configured apps to their dark theme."""
+    _switch(ctx, "dark")
