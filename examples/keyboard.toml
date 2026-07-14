@@ -2,12 +2,16 @@
 model = "pc105"
 # Right Alt as AltGr, Shift+Right Alt as Compose
 compose = "lv3:ralt_switch_multikey"
+# Key auto-repeat (xset r rate <delay> <rate>); omit to leave the X default.
+repeat_delay = 200   # ms held before a key starts repeating
+repeat_rate = 25     # repeats per second
 
-# Each [[device]] binds a layout to a physical keyboard.
-# Prefer "id" — the USB "vendor:product" hex id (stable across renames).
-# Run `desktopctl keyboard list` to read the id of a connected device.
-# "match" (xinput name substring) is an optional fallback for devices
-# with no USB id, or when both are given it widens the match.
+# Each [[device]] binds a layout to a physical keyboard, matched by:
+#   - "id"    the USB "vendor:product" hex id (stable across renames)
+#   - "match" an xinput name substring
+# Give both to pin a device precisely (it must match id AND name); give just
+# one to match on that alone. Run `desktopctl keyboard list` to read a
+# connected device's id and name.
 
 [[device]]
 description = "Built-in laptop keyboard (AT/PS2)"

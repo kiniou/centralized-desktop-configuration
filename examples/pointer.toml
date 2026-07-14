@@ -1,0 +1,51 @@
+# Per-device pointer settings, applied with `xinput` + libinput properties.
+#
+# Each [[device]] binds settings to a physical pointer (mouse, touchpad or
+# trackpoint), matched the same way as keyboards:
+#   - "id"    the USB "vendor:product" hex id (stable across renames)
+#   - "match" an xinput name substring
+# Give both to pin a device precisely (it must match id AND name) — handy when
+# several slaves share one USB id, e.g. a graphics tablet reports the same id
+# for its "Finger touch", "Pen stylus" and "Pen eraser" slaves. Give just one
+# to match on that alone. A device with no USB id (many built-in
+# touchpads/trackpoints) can only be matched by "match". Run
+# `desktopctl pointer list` to read a device's id and name.
+#
+# The ids and names below are placeholders — replace them with your own.
+# One physical keyboard may expose several pointer slaves; settings whose
+# libinput property is missing on a given slave are skipped automatically
+# (reported as "unsupported").
+#
+# Available settings (omit any to leave it untouched):
+#   enabled              true | false            — xinput enable/disable
+#   accel_speed          float in [-1.0, 1.0]    — libinput Accel Speed
+#   accel_profile        adaptive | flat         — libinput Accel Profile Enabled
+#   click_method         buttonareas | clickfinger | none
+#   scroll_method        twofinger | edge | button | none
+#   natural_scrolling    true | false
+#   tapping              true | false
+#   middle_emulation     true | false
+#   disable_while_typing true | false
+#   left_handed          true | false
+
+[[device]]
+description = "TrackPoint"
+# Built-in trackpoints often report no USB id; match by name alone.
+match = "Example TrackPoint"
+accel_speed = 1.0
+accel_profile = "adaptive"
+
+[[device]]
+description = "Touchpad"
+id = "1234:5678"
+match = "Example Touchpad"
+# Prefer double-finger click over right-button emulation.
+click_method = "clickfinger"
+natural_scrolling = true
+
+[[device]]
+description = "Tablet finger touch"
+# id is shared with the pen/eraser slaves, so "match" narrows it to the touch.
+id = "abcd:0001"
+match = "Example Tablet Finger touch"
+enabled = true

@@ -14,15 +14,13 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import xinput
+
 
 # ── data model ───────────────────────────────────────────────────────
 
-@dataclass
-class Keyboard:
-    """A physical keyboard slave reported by xinput."""
-    name: str
-    xinput_id: int
-    usb: str = ""          # normalized "vendor:product" hex, "" if unknown
+# A physical keyboard slave reported by xinput.
+Keyboard = xinput.Device
 
 
 @dataclass
@@ -41,17 +39,15 @@ class DeviceLayout:
         return self.description or self.id or self.match or "?"
 
     def matches(self, kb: Keyboard) -> bool:
-        if self.id and kb.usb and _norm_usb(self.id) == kb.usb:
-            return True
-        if self.match and self.match in kb.name:
-            return True
-        return False
+        return xinput.device_matches(self.id, self.match, kb)
 
 
 @dataclass
 class KeyboardConfig:
     model: str = "pc105"
     compose: str = ""
+    repeat_delay: int | None = None   # ms before key repeat starts (xset r rate)
+    repeat_rate: int | None = None    # repeats per second
     devices: list[DeviceLayout] = field(default_factory=list)
 
 
@@ -86,59 +82,17 @@ def load(path: Path) -> KeyboardConfig:
     return KeyboardConfig(
         model=kb.get("model", "pc105"),
         compose=kb.get("compose", ""),
+        repeat_delay=kb.get("repeat_delay"),
+        repeat_rate=kb.get("repeat_rate"),
         devices=devices,
     )
 
 
 # ── xinput helpers ───────────────────────────────────────────────────
 
-def _norm_usb(s: str) -> str:
-    """Normalize a 'vendor:product' hex id to zero-padded lowercase.
-
-    Returns "" if the string is not a valid vendor:product pair.
-    """
-    try:
-        vendor, product = s.strip().split(":")
-        return f"{int(vendor, 16):04x}:{int(product, 16):04x}"
-    except (ValueError, AttributeError):
-        return ""
-
-
-def _device_usb(xinput_id: int) -> str:
-    """Return the 'vendor:product' hex USB id for an xinput device.
-
-    xinput exposes it as a decimal "Device Product ID (nnn): v, p"
-    property.  Returns "" when the device reports no id (0, 0).
-    """
-    result = subprocess.run(
-        ["xinput", "list-props", str(xinput_id)],
-        capture_output=True, text=True,
-    )
-    m = re.search(r"Device Product ID \(\d+\):\s*(\d+),\s*(\d+)", result.stdout)
-    if not m:
-        return ""
-    vendor, product = int(m.group(1)), int(m.group(2))
-    if vendor == 0 and product == 0:
-        return ""
-    return f"{vendor:04x}:{product:04x}"
-
-
 def list_keyboards() -> list[Keyboard]:
     """Return a Keyboard for each physical keyboard slave."""
-    result = subprocess.run(
-        ["xinput", "list"], capture_output=True, text=True, check=True
-    )
-    devices = []
-    for line in result.stdout.splitlines():
-        m = re.search(
-            r"[↳]\s+(.+?)\s+id=(\d+)\s+\[slave\s+keyboard", line
-        )
-        if m:
-            name = m.group(1).strip()
-            dev_id = int(m.group(2))
-            if "Virtual" not in name and "XTEST" not in name:
-                devices.append(Keyboard(name, dev_id, _device_usb(dev_id)))
-    return devices
+    return xinput.list_devices("keyboard")
 
 
 # ── xkbcomp query (the part setxkbmap -query gets wrong) ────────────
@@ -240,7 +194,46 @@ def apply(config: KeyboardConfig) -> list[str]:
                 f"  {desc}{k.name} (id={k.xinput_id}): {dev_cfg.label()}"
             )
 
+    if repeat := _apply_repeat_rate(config):
+        results.append(repeat)
+
     return results
+
+
+def _apply_repeat_rate(config: KeyboardConfig) -> str | None:
+    """Apply the X server key-repeat via `xset r rate <delay> <rate>`.
+
+    `xset r rate` needs the delay first, so a rate without a delay is
+    ignored.  Returns a status line, or None when nothing was configured.
+    """
+    if config.repeat_delay is None:
+        return None
+    cmd = ["xset", "r", "rate", str(config.repeat_delay)]
+    if config.repeat_rate is not None:
+        cmd.append(str(config.repeat_rate))
+    subprocess.run(cmd, check=True)
+    rate = f", rate {config.repeat_rate}/s" if config.repeat_rate is not None else ""
+    return f"  key repeat: delay {config.repeat_delay}ms{rate}"
+
+
+def _repeat_status(config: KeyboardConfig) -> str | None:
+    """Return the live key-repeat rate (from `xset q`), or None if unset."""
+    if config.repeat_delay is None and config.repeat_rate is None:
+        return None
+    result = subprocess.run(["xset", "q"], capture_output=True, text=True)
+    m = re.search(
+        r"auto repeat delay:\s*(\d+)\s+repeat rate:\s*(\d+)", result.stdout
+    )
+    if not m:
+        return None
+    delay, rate = m.group(1), m.group(2)
+    want = []
+    if config.repeat_delay is not None and str(config.repeat_delay) != delay:
+        want.append(f"delay {config.repeat_delay}")
+    if config.repeat_rate is not None and str(config.repeat_rate) != rate:
+        want.append(f"rate {config.repeat_rate}")
+    mark = f"  (want {', '.join(want)})" if want else ""
+    return f"  key repeat: delay {delay}ms, rate {rate}/s{mark}"
 
 
 def status(config: KeyboardConfig) -> list[str]:
@@ -262,5 +255,8 @@ def status(config: KeyboardConfig) -> list[str]:
                 f"  {desc}{k.name} (id={k.xinput_id}): "
                 f"{state.group_name} [{state.label()}]{opts}"
             )
+
+    if repeat := _repeat_status(config):
+        lines.append(repeat)
 
     return lines

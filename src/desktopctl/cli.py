@@ -11,6 +11,7 @@ from pathlib import Path
 import click
 
 from . import keyboard as kb
+from . import pointer as ptr
 
 DEFAULT_CONFIG_DIR = Path(
     os.environ.get("DESKTOPCTL_CONFIG", "~/.config/desktopctl")
@@ -38,6 +39,13 @@ def _keyboard_config(ctx: click.Context) -> kb.KeyboardConfig:
     if not config_path.exists():
         raise click.ClickException(f"Config not found: {config_path}")
     return kb.load(config_path)
+
+
+def _pointer_config(ctx: click.Context) -> ptr.PointerConfig:
+    config_path = ctx.obj["config_dir"] / "pointer.toml"
+    if not config_path.exists():
+        raise click.ClickException(f"Config not found: {config_path}")
+    return ptr.load(config_path)
 
 
 @cli.group("keyboard")
@@ -77,6 +85,69 @@ def keyboard_list():
     for k in kb.list_keyboards():
         usb = k.usb or "-"
         click.echo(f"  id={k.xinput_id:<3} usb={usb:<9}  {k.name}")
+
+
+@cli.group("pointer")
+def pointer_group():
+    """Pointer (mouse / touchpad / trackpoint) management."""
+
+
+@pointer_group.command("apply")
+@click.pass_context
+def pointer_apply(ctx):
+    """Apply per-device pointer settings from pointer.toml."""
+    config = _pointer_config(ctx)
+    click.echo("Applied:")
+    for line in ptr.apply(config):
+        click.echo(line)
+
+
+@pointer_group.command("status")
+@click.pass_context
+def pointer_status(ctx):
+    """Show per-device pointer settings status."""
+    config = _pointer_config(ctx)
+    lines = ptr.status(config)
+    if lines:
+        for line in lines:
+            click.echo(line)
+    else:
+        click.echo("No configured devices found")
+
+
+@pointer_group.command("list")
+def pointer_list():
+    """List detected pointer devices."""
+    for d in ptr.xinput.list_devices("pointer"):
+        usb = d.usb or "-"
+        click.echo(f"  id={d.xinput_id:<3} usb={usb:<9}  {d.name}")
+
+
+@cli.command("apply")
+@click.pass_context
+def apply_all(ctx):
+    """Apply every available configuration (keyboard, pointer)."""
+    config_dir = ctx.obj["config_dir"]
+    sections = [
+        ("Keyboard", "keyboard.toml", lambda p: kb.apply(kb.load(p))),
+        ("Pointer", "pointer.toml", lambda p: ptr.apply(ptr.load(p))),
+    ]
+
+    ran = False
+    for title, filename, run in sections:
+        path = config_dir / filename
+        if not path.exists():
+            continue
+        ran = True
+        click.echo(f"{title}:")
+        try:
+            for line in run(path):
+                click.echo(line)
+        except Exception as exc:  # keep applying the other sections
+            click.echo(f"  error: {exc}")
+
+    if not ran:
+        raise click.ClickException(f"No configuration found in {config_dir}")
 
 
 @cli.command()

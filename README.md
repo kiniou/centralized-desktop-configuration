@@ -5,7 +5,8 @@ Manage your Linux desktop settings from a single, version-controlled source.
 `desktopctl` is a small CLI that keeps fiddly, per-machine desktop tweaks in
 plain [TOML](https://toml.io) files you can commit, share and reapply. It
 currently focuses on **per-device keyboard layouts** (so an external keyboard
-and the built-in one can each get their own layout) and a thin wrapper around an
+and the built-in one can each get their own layout), **per-device pointer
+settings** (touchpad / trackpoint / mouse tweaks) and a thin wrapper around an
 **emoji picker**.
 
 > Targets **X11** (uses `xinput`, `setxkbmap`, `xkbcomp`). Wayland is not
@@ -18,8 +19,13 @@ and the built-in one can each get their own layout) and a thin wrapper around an
 - **Per-device keyboard layouts** — bind a layout/variant to a specific physical
   keyboard, matched by its USB `vendor:product` id (stable across renames) or by
   an `xinput` name substring.
+- **Per-device pointer settings** — apply libinput tweaks (acceleration, click
+  method, natural scrolling, tapping, enable/disable, …) to a specific touchpad,
+  trackpoint or mouse, matched the same way.
 - **Accurate status** — reads back the *actual* per-device XKB state with
-  `xkbcomp -i` (which `setxkbmap -query` gets wrong for per-device layouts).
+  `xkbcomp -i` (which `setxkbmap -query` gets wrong for per-device layouts), and
+  the live libinput property values for pointers.
+- **Apply everything** — `desktopctl apply` runs every configuration present.
 - **Emoji picker** — launches [`rofimoji`](https://github.com/fdw/rofimoji) with
   options read from your config.
 - **Shell completion** — generate completion scripts for `zsh`, `bash` or `fish`.
@@ -31,6 +37,7 @@ and the built-in one can each get their own layout) and a thin wrapper around an
 | Purpose            | Tools                                             |
 | ------------------ | ------------------------------------------------- |
 | Keyboard commands  | `xinput`, `setxkbmap`, `xkbcomp` (X11)            |
+| Pointer commands   | `xinput` with the libinput X driver (X11)         |
 | Emoji picker       | `rofimoji` (optional)                             |
 | Install            | [`uv`](https://docs.astral.sh/uv/)               |
 
@@ -88,7 +95,7 @@ Configuration lives in `~/.config/desktopctl/`. Copy the sample from
 
 ```bash
 mkdir -p ~/.config/desktopctl
-cp examples/keyboard.toml ~/.config/desktopctl/
+cp examples/keyboard.toml examples/pointer.toml ~/.config/desktopctl/
 ```
 
 A minimal `keyboard.toml`:
@@ -98,10 +105,12 @@ A minimal `keyboard.toml`:
 model = "pc105"
 # Right Alt as AltGr, Shift+Right Alt as Compose
 compose = "lv3:ralt_switch_multikey"
+repeat_delay = 200   # xset r rate: ms before a key repeats
+repeat_rate = 25     # repeats per second
 
-# One [[device]] per physical keyboard.
-# Prefer "id" (USB vendor:product hex) — run `desktopctl keyboard list` to find it.
-# "match" (xinput name substring) is a fallback for devices with no USB id.
+# One [[device]] per physical keyboard, matched by "id" (USB vendor:product
+# hex) and/or "match" (xinput name substring). Give both to require a match on
+# id AND name; run `desktopctl keyboard list` to read a device's id and name.
 [[device]]
 description = "Internal ThinkPad keyboard"
 id = "0001:0001"
@@ -121,6 +130,26 @@ action = "type"
 skin_tone = "neutral"
 ```
 
+A minimal `pointer.toml` (one `[[device]]` per pointer; same `id`/`match`
+scheme as keyboards):
+
+```toml
+[[device]]
+description = "Touchpad"
+match = "Synaptics TM3418-002"
+click_method = "clickfinger"    # prefer 1/2/3-finger clicks over button areas
+natural_scrolling = true
+
+[[device]]
+description = "TrackPoint"
+match = "TrackPoint"
+accel_speed = 1.0               # libinput Accel Speed, in [-1.0, 1.0]
+accel_profile = "adaptive"
+```
+
+See [`examples/pointer.toml`](examples/pointer.toml) for every supported
+setting.
+
 > Prefer a different location? Point at it with `desktopctl -C <dir> …` or the
 > `DESKTOPCTL_CONFIG` environment variable. You can also symlink your repo copy
 > into `~/.config/desktopctl/` to keep everything version-controlled.
@@ -130,9 +159,13 @@ skin_tone = "neutral"
 ## Usage
 
 ```bash
+desktopctl apply              # Apply every configuration that exists
 desktopctl keyboard list      # List detected keyboards (with USB ids)
 desktopctl keyboard apply     # Apply per-device layouts from keyboard.toml
 desktopctl keyboard status    # Show the current layout of each device
+desktopctl pointer list       # List detected pointers (with USB ids)
+desktopctl pointer apply      # Apply per-device pointer settings from pointer.toml
+desktopctl pointer status     # Show the current settings of each pointer
 desktopctl emoji              # Launch the emoji picker
 desktopctl --help             # Full command reference
 ```
@@ -161,7 +194,7 @@ Replace `zsh` with `bash` or `fish` as needed.
 ## Project layout
 
 ```
-src/desktopctl/   # CLI (cli.py) and keyboard logic (keyboard.py)
+src/desktopctl/   # CLI (cli.py), keyboard.py, pointer.py, shared xinput.py
 examples/         # sample configuration to copy into ~/.config/desktopctl/
 ```
 
